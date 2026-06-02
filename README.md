@@ -24,6 +24,31 @@ context menu — a local replacement for round-tripping through TinyPNG.
 | `imageOptimizer.skipIfLargerOrEqual` | `true` | When overwriting in place, keep the original if no size win. |
 | `imageOptimizer.minSavingsPercent` | `0` | When overwriting in place, only write if savings meet this percent. |
 
+## Install from GitHub
+
+If you want to install this extension directly from source:
+
+```bash
+git clone https://github.com/john-rock/vscimg.git
+cd image-optimizer-vscode
+npm install
+npm run package
+code --install-extension image-optimizer-*.vsix
+```
+
+Requirements:
+
+- Node.js 20+
+- VS Code CLI (`code`) available in your shell
+
+If you do not have the `code` CLI available:
+
+1. Run `npm run package` to generate the `.vsix` file.
+2. In VS Code, open Extensions view.
+3. Click the `...` menu in the Extensions panel.
+4. Choose **Install from VSIX...**.
+5. Select the generated `image-optimizer-<version>.vsix` file.
+
 ## Develop
 
 ```bash
