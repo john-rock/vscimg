@@ -2,7 +2,7 @@
   "name": "image-optimizer",
   "displayName": "Image Optimizer",
   "description": "Right-click any image or folder in the Explorer to compress it in place — TinyPNG-style lossy optimization, fully local.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "johnrock",
   "private": true,
   "license": "MIT",

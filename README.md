@@ -65,6 +65,20 @@ npm run package                       # produces image-optimizer-<version>.vsix
 code --install-extension image-optimizer-0.1.0.vsix
 ```
 
+## Automated GitHub releases
+
+This repo includes a GitHub Actions workflow at `.github/workflows/release.yml`.
+Pushing a tag like `v0.3.1` will:
+
+- build and package the extension
+- create/update a GitHub Release for that tag
+- upload the generated `.vsix` as a release asset
+
+```bash
+git tag v0.3.1
+git push origin v0.3.1
+```
+
 ## Architecture
 
 The encoder is isolated in `src/optimize.ts` behind a single `optimize()`
