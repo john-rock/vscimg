@@ -110,6 +110,8 @@ export async function openPreview(
         onSaved(uri, originalSize, buf.byteLength)
         panel.dispose()
       } catch (e) {
+        // Re-enable the webview's Save button so the user isn't stuck on "Saving…".
+        void panel.webview.postMessage({ type: 'saveFailed' })
         void vscode.window.showErrorMessage(
           `Image Optimizer: save failed — ${e instanceof Error ? e.message : String(e)}`
         )
@@ -239,6 +241,7 @@ function getHtml(
 
   let seq = 0;          // generation counter — discard stale encode responses
   let timer = null;
+  let saving = false;   // freeze the UI between Save click and write completing
 
   function fmt(b) {
     if (b < 1024) return b + ' B';
@@ -262,13 +265,22 @@ function getHtml(
   q.addEventListener('input', debouncedEncode);
 
   saveBtn.addEventListener('click', () => {
+    saving = true;
     saveBtn.disabled = true;
+    q.disabled = true;
     saveBtn.textContent = 'Saving…';
     vscode.postMessage({ type: 'save', quality: Number(q.value) });
   });
 
   window.addEventListener('message', (event) => {
     const msg = event.data;
+    if (msg.type === 'saveFailed') {
+      saving = false;
+      saveBtn.disabled = false;
+      q.disabled = false;
+      saveBtn.textContent = 'Save';
+      return;
+    }
     if (msg.type === 'encoded') {
       if (msg.seq !== seq) return;   // a newer request superseded this one
       optImg.src = msg.dataUri;
@@ -277,7 +289,7 @@ function getHtml(
       const pct = ORIGINAL_SIZE > 0 ? Math.round((1 - msg.size / ORIGINAL_SIZE) * 100) : 0;
       savedEl.textContent = (pct >= 0 ? '−' : '+') + Math.abs(pct) + '% ' + (pct >= 0 ? 'smaller' : 'larger');
       savedEl.className = 'saved ' + (pct > 0 ? 'good' : 'bad');
-      saveBtn.disabled = false;
+      if (!saving) saveBtn.disabled = false;   // don't reopen Save mid-write
     } else if (msg.type === 'error') {
       if (msg.seq !== seq) return;
       optImg.classList.remove('busy');
