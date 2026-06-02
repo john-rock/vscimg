@@ -1,7 +1,7 @@
 import * as path from 'path'
 import * as vscode from 'vscode'
 import { isSupported, optimize, type OptimizeOptions } from './optimize'
-import { isPreviewable, openPreview, type PreviewDefaults } from './preview'
+import { isPreviewable, openPreview } from './preview'
 
 interface Result {
   uri: vscode.Uri
@@ -14,6 +14,7 @@ interface Result {
 interface Settings extends OptimizeOptions {
   skipIfLargerOrEqual: boolean
   minSavingsPercent: number
+  notificationSeconds: number
 }
 
 let output: vscode.OutputChannel | undefined
@@ -57,7 +58,39 @@ function readSettings(): Settings {
     webpQuality: c.get('webpQuality', 80),
     skipIfLargerOrEqual: c.get('skipIfLargerOrEqual', true),
     minSavingsPercent: c.get('minSavingsPercent', 0),
+    notificationSeconds: c.get('notificationSeconds', 5),
   }
+}
+
+/** Resolves after `ms`, or immediately if the token is cancelled. */
+function delay(ms: number, token: vscode.CancellationToken): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms)
+    token.onCancellationRequested(() => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
+}
+
+/**
+ * Show a result as a progress notification held open for `seconds`, then
+ * auto-dismissed. This is the only way to get an auto-hiding toast with a
+ * caller-controlled duration — plain messages use a fixed short timeout and
+ * messages with buttons never auto-hide. Cancellable so it can be dismissed early.
+ */
+async function autoHideToast(message: string, seconds: number): Promise<void> {
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: 'Image Optimizer',
+      cancellable: true,
+    },
+    async (progress, token) => {
+      progress.report({ message })
+      await delay(Math.max(1, seconds) * 1000, token)
+    }
+  )
 }
 
 async function collectImages(uri: vscode.Uri): Promise<vscode.Uri[]> {
@@ -132,10 +165,10 @@ async function run(
   }
 
   const settings = readSettings()
-  const results = await vscode.window.withProgress(
+  await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: 'Optimizing images',
+      title: 'Image Optimizer',
       cancellable: true,
     },
     async (progress, token) => {
@@ -144,16 +177,22 @@ async function run(
       for (const uri of targets) {
         if (token.isCancellationRequested) break
         progress.report({
-          message: `${++done}/${targets.length} — ${path.basename(uri.fsPath)}`,
+          message: `Optimizing ${++done}/${targets.length} — ${path.basename(uri.fsPath)}`,
           increment: 100 / targets.length,
         })
         out.push(await optimizeOne(uri, settings, destOverride))
       }
+
+      logResults(out)
+      // Hold the same toast open showing the summary, then let it auto-hide —
+      // no second notification, so nothing flashes.
+      if (!token.isCancellationRequested) {
+        progress.report({ message: summarize(out), increment: 0 })
+        await delay(Math.max(1, settings.notificationSeconds) * 1000, token)
+      }
       return out
     }
   )
-
-  report(results)
 }
 
 async function runPreview(
@@ -174,20 +213,15 @@ async function runPreview(
     return
   }
 
-  const defaults: PreviewDefaults = readSettings()
-  await openPreview(uri, defaults, (savedUri, before, after) => {
-    const c = channel()
-    c.appendLine(
+  const settings = readSettings()
+  await openPreview(uri, settings, (savedUri, before, after) => {
+    channel().appendLine(
       `[preview] ${savedUri.fsPath}: ${fmt(before)} -> ${fmt(after)} (-${pct(before, after)}%)`
     )
-    void vscode.window
-      .showInformationMessage(
-        `${path.basename(savedUri.fsPath)}: ${fmt(before)} → ${fmt(after)} (−${pct(before, after)}%)`,
-        'Details'
-      )
-      .then((choice) => {
-        if (choice === 'Details') c.show(true)
-      })
+    void autoHideToast(
+      `${path.basename(savedUri.fsPath)}: ${fmt(before)} → ${fmt(after)} (−${pct(before, after)}%)`,
+      settings.notificationSeconds
+    )
   })
 }
 
@@ -239,14 +273,13 @@ function pct(before: number, after: number): number {
   return before > 0 ? Math.round(((before - after) / before) * 100) : 0
 }
 
-function report(results: Result[]): void {
-  const errors = results.filter((r) => r.error)
-  const written = results.filter((r) => r.written)
-  const skipped = results.filter((r) => !r.written && !r.error)
-
-  // Log a per-file breakdown to the channel the "Details" button reveals.
+/** Append a per-file breakdown to the Output ▸ Image Optimizer channel. */
+function logResults(results: Result[]): void {
   const c = channel()
-  c.appendLine(`[${new Date().toLocaleTimeString()}] optimized ${written.length}/${results.length}`)
+  const written = results.filter((r) => r.written)
+  c.appendLine(
+    `[${new Date().toLocaleTimeString()}] optimized ${written.length}/${results.length}`
+  )
   for (const r of results) {
     if (r.error) {
       c.appendLine(`  ✗ ${r.uri.fsPath} — ${r.error}`)
@@ -258,40 +291,30 @@ function report(results: Result[]): void {
       c.appendLine(`  – ${path.basename(r.uri.fsPath)}: skipped (no size win)`)
     }
   }
+}
 
-  // Notifications with an action button stay until dismissed (no auto-flash).
-  const show = (message: string): void => {
-    void vscode.window.showInformationMessage(message, 'Details').then((choice) => {
-      if (choice === 'Details') c.show(true)
-    })
-  }
+/** One-line summary for the auto-hiding result toast. */
+function summarize(results: Result[]): string {
+  const errors = results.filter((r) => r.error)
+  const written = results.filter((r) => r.written)
+  const skipped = results.filter((r) => !r.written && !r.error)
 
   if (written.length === 1 && errors.length === 0) {
     const r = written[0]
-    show(
-      `${path.basename(r.uri.fsPath)}: ${fmt(r.before)} → ${fmt(r.after)} (−${pct(r.before, r.after)}%)`
-    )
-  } else if (written.length > 0) {
+    return `${path.basename(r.uri.fsPath)}: ${fmt(r.before)} → ${fmt(r.after)} (−${pct(r.before, r.after)}%)`
+  }
+  if (written.length > 0) {
     const totalBefore = written.reduce((s, r) => s + r.before, 0)
     const totalAfter = written.reduce((s, r) => s + r.after, 0)
-    show(
-      `Optimized ${written.length} image${written.length > 1 ? 's' : ''}: ` +
-        `${fmt(totalBefore)} → ${fmt(totalAfter)} (−${pct(totalBefore, totalAfter)}%)` +
-        (skipped.length ? `, ${skipped.length} skipped` : '') +
-        (errors.length ? `, ${errors.length} failed` : '')
+    return (
+      `Optimized ${written.length} images: ` +
+      `${fmt(totalBefore)} → ${fmt(totalAfter)} (−${pct(totalBefore, totalAfter)}%)` +
+      (skipped.length ? `, ${skipped.length} skipped` : '') +
+      (errors.length ? `, ${errors.length} failed` : '')
     )
-  } else if (errors.length === 0) {
-    show(`Image Optimizer: nothing written (${skipped.length} already optimal).`)
   }
-
-  if (errors.length) {
-    void vscode.window
-      .showErrorMessage(
-        `Image Optimizer: ${errors.length} failed. First error: ${errors[0].error}`,
-        'Details'
-      )
-      .then((choice) => {
-        if (choice === 'Details') c.show(true)
-      })
+  if (errors.length > 0) {
+    return `${errors.length} image${errors.length > 1 ? 's' : ''} failed — see Output ▸ Image Optimizer`
   }
+  return `Nothing written (${skipped.length} already optimal)`
 }

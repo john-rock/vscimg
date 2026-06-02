@@ -2,7 +2,7 @@
   "name": "image-optimizer",
   "displayName": "Image Optimizer",
   "description": "Right-click any image or folder in the Explorer to compress it in place — TinyPNG-style lossy optimization, fully local.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "johnrock",
   "private": true,
   "license": "MIT",
@@ -85,6 +85,13 @@
           "minimum": 0,
           "maximum": 100,
           "description": "When overwriting in place, only write the result if it saves at least this percent."
+        },
+        "imageOptimizer.notificationSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 60,
+          "description": "How long the result notification stays on screen before auto-hiding."
         }
       }
     }
