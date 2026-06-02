@@ -39,10 +39,12 @@ into `public/samples/`.
 
 ## Deploy (Vercel)
 
-This is a standard Next.js app. In the Vercel project settings:
+This is a standard Next.js app. The repo includes `web/vercel.json` so install
+and build commands are versioned in code.
+
+In the Vercel project settings:
 
 - **Root Directory:** `web/`
-- **Framework Preset:** Next.js (auto-detected)
+- **Framework Preset:** Next.js (or auto-detected)
 
-No other configuration is required — `npm run build` produces the deployable
-output.
+Deploys use `npm ci` and `npm run build` from `web/vercel.json`.

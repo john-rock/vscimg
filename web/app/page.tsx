@@ -38,7 +38,7 @@ export default function Page() {
     <main className={styles.main}>
       <nav className={styles.nav}>
         <a href="#top" className={styles.brand}>
-          image-optimizer
+          vscimg
         </a>
         <div className={styles.navLinks}>
           <a href="#demo">Demo</a>
@@ -55,19 +55,14 @@ export default function Page() {
         <p className={styles.lede}>
           Lossy, TinyPNG-class image compression — <strong>without the round-trip</strong>.
           Right-click an image in the Explorer and it’s re-encoded on the spot. Everything runs
-          locally; your images never leave your machine.
+          locally; your images never leave your machine. Coming soon to the VS Code Extension
+          Marketplace.
         </p>
         <div className={styles.cta}>
-          <a className={`${styles.btn} ${styles.btnPrimary}`} href={RELEASES}>
-            Download from GitHub
-          </a>
+          <span className={`${styles.btn} ${styles.btnPrimary}`}>Marketplace coming soon</span>
           <a className={styles.btn} href="#demo">
             Try the live demo ↓
           </a>
-        </div>
-        <div className={styles.cmd}>
-          <span className={styles.prompt}>$</span>
-          <code>code --install-extension image-optimizer-{VERSION}.vsix</code>
         </div>
       </section>
 
@@ -100,11 +95,9 @@ export default function Page() {
           <div className={styles.step}>
             <h3>1. Install</h3>
             <p>
-              Not on the Marketplace yet — grab the <code>.vsix</code> from{' '}
-              <a href={RELEASES}>GitHub Releases</a> and install it:
+              The extension is coming soon to the VS Code Extension Marketplace. Installation will
+              be available there once it launches.
             </p>
-            <code className={styles.code}>{`code --install-extension image-optimizer-${VERSION}.vsix
-# or, in VS Code: Extensions → ⋯ → Install from VSIX…`}</code>
           </div>
           <div className={styles.step}>
             <h3>2. Run a command</h3>
@@ -147,7 +140,7 @@ export default function Page() {
       </section>
 
       <footer className={styles.footer}>
-        <span>image-optimizer · v{VERSION} · MIT</span>
+        <span>vscimg · v{VERSION} · MIT</span>
         <span>
           <a href={REPO}>GitHub</a> · <a href={RELEASES}>Releases</a>
         </span>

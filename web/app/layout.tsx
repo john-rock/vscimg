@@ -8,9 +8,9 @@ const mono = JetBrains_Mono({
   subsets: ['latin'],
 })
 
-const title = 'Image Optimizer — compress images in your editor'
+const title = 'vscimg — compress images in your editor'
 const description =
-  'A VS Code extension that compresses images in place, right from the Explorer — lossy, TinyPNG-class compression that runs entirely on your machine. Try the live demo.'
+  'A VS Code extension that compresses images in place, right from the Explorer — lossy, TinyPNG-class compression that runs entirely on your machine. Coming soon to the VS Code Extension Marketplace. Try the live demo.'
 
 export const metadata: Metadata = {
   title,
