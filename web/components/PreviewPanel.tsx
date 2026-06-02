@@ -20,13 +20,13 @@ export default function PreviewPanel({ node, blob, onSave, onClose }: Props) {
 
   const [image, setImage] = useState<ImageData | null>(null)
   const [quality, setQuality] = useState(DEFAULT_QUALITY)
+  const [origUrl, setOrigUrl] = useState<string | null>(null)
   const [optUrl, setOptUrl] = useState<string | null>(null)
   const [optBytes, setOptBytes] = useState<number | null>(null)
   const [busy, setBusy] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const origUrlRef = useRef<string>(URL.createObjectURL(blob))
   const optUrlRef = useRef<string | null>(null)
   const seqRef = useRef(0)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -77,10 +77,18 @@ export default function PreviewPanel({ node, blob, onSave, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Object URL for the original preview, recreated whenever the source blob
+  // changes. Created in an effect (not a useRef initializer) so React
+  // StrictMode's mount→cleanup→mount can't leave the <img> pointing at a URL
+  // it already revoked.
   useEffect(() => {
-    const orig = origUrlRef.current
+    const url = URL.createObjectURL(blob)
+    setOrigUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [blob])
+
+  useEffect(() => {
     return () => {
-      URL.revokeObjectURL(orig)
       if (optUrlRef.current) URL.revokeObjectURL(optUrlRef.current)
     }
   }, [])
@@ -98,15 +106,24 @@ export default function PreviewPanel({ node, blob, onSave, onClose }: Props) {
     try {
       // Full effort for the file we actually write back, like the extension.
       const { bytes } = await encodeImage(image, format, quality, false)
-      onSave(bytes)
+      // Mirror imageOptimizer.skipIfLargerOrEqual: never write a file bigger
+      // than the source. If re-encoding doesn't shrink it, keep the original.
+      onSave(Math.min(bytes, originalSize))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
       setSaving(false)
     }
   }
 
+  // The slider can request any quality, but the optimizer never makes a file
+  // larger: if the encode is >= the original, we keep the original (skip rule),
+  // so the reported size is clamped and savings can't go negative.
+  const noWin = optBytes != null && optBytes >= originalSize
+  const effectiveBytes = optBytes == null ? null : noWin ? originalSize : optBytes
   const savedPct =
-    optBytes != null && originalSize > 0 ? Math.round((1 - optBytes / originalSize) * 100) : null
+    effectiveBytes != null && originalSize > 0
+      ? Math.round((1 - effectiveBytes / originalSize) * 100)
+      : null
 
   return (
     <div className={styles.preview}>
@@ -141,15 +158,16 @@ export default function PreviewPanel({ node, blob, onSave, onClose }: Props) {
           Original: <strong>{fmtBytes(originalSize)}</strong>
         </span>
         <span>
-          Optimized: <strong>{busy ? '…' : optBytes != null ? fmtBytes(optBytes) : '…'}</strong>
+          Optimized: <strong>{busy ? '…' : effectiveBytes != null ? fmtBytes(effectiveBytes) : '…'}</strong>
         </span>
         {error ? (
           <span className={`${styles.saved} ${styles.bad}`}>{error}</span>
+        ) : busy ? (
+          <span className={styles.saved}>—</span>
+        ) : noWin ? (
+          <span className={styles.saved}>no size win — keeping original</span>
         ) : savedPct != null ? (
-          <span className={`${styles.saved} ${savedPct > 0 ? styles.good : styles.bad}`}>
-            {savedPct >= 0 ? '−' : '+'}
-            {Math.abs(savedPct)}% {savedPct >= 0 ? 'smaller' : 'larger'}
-          </span>
+          <span className={`${styles.saved} ${styles.good}`}>−{savedPct}% smaller</span>
         ) : (
           <span className={styles.saved}>—</span>
         )}
@@ -160,14 +178,17 @@ export default function PreviewPanel({ node, blob, onSave, onClose }: Props) {
           <h4>Original</h4>
           <div className={styles.imgwrap}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={origUrlRef.current} alt="original" />
+            {origUrl && <img src={origUrl} alt="original" />}
           </div>
         </div>
         <div className={styles.pane}>
           <h4>Optimized</h4>
           <div className={styles.imgwrap}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            {optUrl && <img className={busy ? styles.busy : ''} src={optUrl} alt="optimized" />}
+            {/* When the encode is no smaller, we keep the original — so show it. */}
+            {(noWin ? origUrl : optUrl) && (
+              <img className={busy ? styles.busy : ''} src={(noWin ? origUrl : optUrl)!} alt="optimized" />
+            )}
           </div>
         </div>
       </div>

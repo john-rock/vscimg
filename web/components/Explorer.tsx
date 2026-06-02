@@ -157,7 +157,7 @@ export default function Explorer() {
           <Tree
             data={tree}
             openByDefault={false}
-            initialOpenState={{ assets: true, 'assets/ui': true }}
+            initialOpenState={{ assets: true }}
             width="100%"
             height={400}
             rowHeight={26}

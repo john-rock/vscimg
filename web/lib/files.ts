@@ -33,11 +33,6 @@ export const INITIAL_TREE: FileNode[] = [
       img('banner.jpg', 'jpeg'),
       img('avatar.jpg', 'jpeg'),
       img('texture.webp', 'webp'),
-      {
-        id: 'assets/ui',
-        name: 'ui',
-        children: [img('screenshot.png', 'png')],
-      },
     ],
   },
   {

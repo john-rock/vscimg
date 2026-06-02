@@ -43,7 +43,8 @@
 .tag {
   color: var(--muted);
   font-size: 13px;
-  letter-spacing: 0.06em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 20px;
 }
@@ -110,6 +111,16 @@
   margin-bottom: 28px;
 }
 
+/* shared bracket wrap for section labels */
+.tag::before,
+.sectionHead::before {
+  content: '[ ';
+}
+.tag::after,
+.sectionHead::after {
+  content: ' ]';
+}
+
 /* --- features --- */
 .grid {
   display: grid;
@@ -127,6 +138,19 @@
 .cell h3 {
   font-size: 15px;
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.comingSoon {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8a8a90;
+  border: 1px solid #3a3a40;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-weight: 400;
 }
 .cell p {
   margin: 0;
