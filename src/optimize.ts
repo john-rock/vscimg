@@ -27,11 +27,16 @@ export function isSupported(ext: string): boolean {
  * This is the single engine seam for the whole extension: everything
  * else (menus, file walking, reporting) is encoder-agnostic, so swapping
  * sharp for a WASM encoder later means rewriting only this function.
+ *
+ * `fast` trades a little compression for speed (lower effort levels) — it
+ * exists for the live quality-preview slider, where re-encoding on every
+ * drag must stay responsive. Final saves always pass `fast = false`.
  */
 export async function optimize(
   input: Buffer,
   ext: string,
-  opts: OptimizeOptions
+  opts: OptimizeOptions,
+  fast = false
 ): Promise<Buffer> {
   const e = ext.toLowerCase()
   // Preserve animation frames for formats that can carry them.
@@ -40,6 +45,7 @@ export async function optimize(
   switch (e) {
     case '.jpg':
     case '.jpeg':
+      // mozjpeg is already fast; no separate fast path needed.
       return pipeline
         .jpeg({ quality: opts.jpegQuality, mozjpeg: true })
         .toBuffer()
@@ -50,14 +56,20 @@ export async function optimize(
         .png({
           quality: opts.pngQuality,
           palette: true,
-          compressionLevel: 9,
-          effort: 10,
+          compressionLevel: fast ? 6 : 9,
+          effort: fast ? 4 : 10,
         })
         .toBuffer()
     case '.webp':
-      return pipeline.webp({ quality: opts.webpQuality, effort: 6 }).toBuffer()
+      return pipeline
+        .webp({ quality: opts.webpQuality, effort: fast ? 3 : 6 })
+        .toBuffer()
     case '.avif':
-      return pipeline.avif({ quality: opts.webpQuality, effort: 5 }).toBuffer()
+      // AVIF is the slow one — high effort can take seconds, so previews
+      // use the lowest effort and the real save re-encodes at full effort.
+      return pipeline
+        .avif({ quality: opts.webpQuality, effort: fast ? 1 : 5 })
+        .toBuffer()
     case '.tiff':
     case '.tif':
       return pipeline.tiff({ quality: opts.jpegQuality }).toBuffer()

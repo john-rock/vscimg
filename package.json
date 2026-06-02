@@ -2,7 +2,7 @@
   "name": "image-optimizer",
   "displayName": "Image Optimizer",
   "description": "Right-click any image or folder in the Explorer to compress it in place — TinyPNG-style lossy optimization, fully local.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "johnrock",
   "private": true,
   "license": "MIT",
@@ -21,6 +21,11 @@
         "category": "Image Optimizer"
       },
       {
+        "command": "imageOptimizer.preview",
+        "title": "Preview & Optimize Image…",
+        "category": "Image Optimizer"
+      },
+      {
         "command": "imageOptimizer.optimizeAs",
         "title": "Optimize Image As…",
         "category": "Image Optimizer"
@@ -34,9 +39,14 @@
           "group": "7_modification@1"
         },
         {
+          "command": "imageOptimizer.preview",
+          "when": "!explorerResourceIsFolder && resourceExtname =~ /\\.(png|jpe?g|webp|avif|gif)$/i",
+          "group": "7_modification@2"
+        },
+        {
           "command": "imageOptimizer.optimizeAs",
           "when": "!explorerResourceIsFolder && resourceExtname =~ /\\.(png|jpe?g|webp|avif|tiff?|gif)$/i",
-          "group": "7_modification@2"
+          "group": "7_modification@3"
         }
       ]
     },

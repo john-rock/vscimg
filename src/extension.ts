@@ -1,6 +1,7 @@
 import * as path from 'path'
 import * as vscode from 'vscode'
 import { isSupported, optimize, type OptimizeOptions } from './optimize'
+import { isPreviewable, openPreview, type PreviewDefaults } from './preview'
 
 interface Result {
   uri: vscode.Uri
@@ -15,6 +16,15 @@ interface Settings extends OptimizeOptions {
   minSavingsPercent: number
 }
 
+let output: vscode.OutputChannel | undefined
+
+function channel(): vscode.OutputChannel {
+  if (!output) {
+    output = vscode.window.createOutputChannel('Image Optimizer')
+  }
+  return output
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand(
@@ -26,12 +36,17 @@ export function activate(context: vscode.ExtensionContext): void {
       'imageOptimizer.optimizeAs',
       (clicked?: vscode.Uri, selected?: vscode.Uri[]) =>
         run(clicked, selected, true)
+    ),
+    vscode.commands.registerCommand(
+      'imageOptimizer.preview',
+      (clicked?: vscode.Uri, selected?: vscode.Uri[]) =>
+        runPreview(clicked, selected)
     )
   )
 }
 
 export function deactivate(): void {
-  // nothing to clean up
+  output?.dispose()
 }
 
 function readSettings(): Settings {
@@ -141,6 +156,41 @@ async function run(
   report(results)
 }
 
+async function runPreview(
+  clicked: vscode.Uri | undefined,
+  selected: vscode.Uri[] | undefined
+): Promise<void> {
+  const uri = clicked ?? (selected && selected[0])
+  if (!uri) {
+    void vscode.window.showWarningMessage(
+      'Image Optimizer: no image selected.'
+    )
+    return
+  }
+  if (!isPreviewable(path.extname(uri.fsPath))) {
+    void vscode.window.showWarningMessage(
+      `Image Optimizer: preview isn't available for ${path.extname(uri.fsPath)} files. Use "Optimize Image" instead.`
+    )
+    return
+  }
+
+  const defaults: PreviewDefaults = readSettings()
+  await openPreview(uri, defaults, (savedUri, before, after) => {
+    const c = channel()
+    c.appendLine(
+      `[preview] ${savedUri.fsPath}: ${fmt(before)} -> ${fmt(after)} (-${pct(before, after)}%)`
+    )
+    void vscode.window
+      .showInformationMessage(
+        `${path.basename(savedUri.fsPath)}: ${fmt(before)} → ${fmt(after)} (−${pct(before, after)}%)`,
+        'Details'
+      )
+      .then((choice) => {
+        if (choice === 'Details') c.show(true)
+      })
+  })
+}
+
 async function optimizeOne(
   uri: vscode.Uri,
   settings: Settings,
@@ -194,29 +244,54 @@ function report(results: Result[]): void {
   const written = results.filter((r) => r.written)
   const skipped = results.filter((r) => !r.written && !r.error)
 
+  // Log a per-file breakdown to the channel the "Details" button reveals.
+  const c = channel()
+  c.appendLine(`[${new Date().toLocaleTimeString()}] optimized ${written.length}/${results.length}`)
+  for (const r of results) {
+    if (r.error) {
+      c.appendLine(`  ✗ ${r.uri.fsPath} — ${r.error}`)
+    } else if (r.written) {
+      c.appendLine(
+        `  ✓ ${path.basename(r.uri.fsPath)}: ${fmt(r.before)} -> ${fmt(r.after)} (-${pct(r.before, r.after)}%)`
+      )
+    } else {
+      c.appendLine(`  – ${path.basename(r.uri.fsPath)}: skipped (no size win)`)
+    }
+  }
+
+  // Notifications with an action button stay until dismissed (no auto-flash).
+  const show = (message: string): void => {
+    void vscode.window.showInformationMessage(message, 'Details').then((choice) => {
+      if (choice === 'Details') c.show(true)
+    })
+  }
+
   if (written.length === 1 && errors.length === 0) {
     const r = written[0]
-    void vscode.window.showInformationMessage(
+    show(
       `${path.basename(r.uri.fsPath)}: ${fmt(r.before)} → ${fmt(r.after)} (−${pct(r.before, r.after)}%)`
     )
   } else if (written.length > 0) {
     const totalBefore = written.reduce((s, r) => s + r.before, 0)
     const totalAfter = written.reduce((s, r) => s + r.after, 0)
-    void vscode.window.showInformationMessage(
+    show(
       `Optimized ${written.length} image${written.length > 1 ? 's' : ''}: ` +
         `${fmt(totalBefore)} → ${fmt(totalAfter)} (−${pct(totalBefore, totalAfter)}%)` +
         (skipped.length ? `, ${skipped.length} skipped` : '') +
         (errors.length ? `, ${errors.length} failed` : '')
     )
   } else if (errors.length === 0) {
-    void vscode.window.showInformationMessage(
-      `Image Optimizer: nothing written (${skipped.length} already optimal).`
-    )
+    show(`Image Optimizer: nothing written (${skipped.length} already optimal).`)
   }
 
   if (errors.length) {
-    void vscode.window.showErrorMessage(
-      `Image Optimizer: ${errors.length} failed. First error: ${errors[0].error}`
-    )
+    void vscode.window
+      .showErrorMessage(
+        `Image Optimizer: ${errors.length} failed. First error: ${errors[0].error}`,
+        'Details'
+      )
+      .then((choice) => {
+        if (choice === 'Details') c.show(true)
+      })
   }
 }
