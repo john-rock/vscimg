@@ -1,18 +1,19 @@
-# Image Optimizer
+# vscimage - Local Image Optimizer
 
-A VS Code extension that compresses images in place, right from the Explorer
-context menu — a local replacement for round-tripping through TinyPNG.
+A VS Code extension that compresses images in place, right from the Explorer context menu — a fully local replacement for TinyPNG.
 
-## What it does
+## Features
 
-- Right-click an image (or a folder, or a multi-selection) in the Explorer →
-  **Optimize Image**. Files are re-encoded and overwritten in place.
-- **Optimize Image As…** (single file) re-encodes to a new name/format you type.
+- Right-click an image (or a folder, or a multi-selection) in the Explorer → **Optimize Image**. Files are re-encoded and overwritten in place.
+- **Preview & Optimize Image…** opens a side-by-side preview so you can see the result before committing.
+- **Optimize Image As…** re-encodes a single file to a new name or format.
 - Folders recurse and optimize every supported image inside.
-- Lossy, TinyPNG-class compression via [sharp](https://sharp.pixelplumbing.com/)
-  (mozjpeg for JPEG, libimagequant palette quantization for PNG, plus WebP,
-  AVIF, TIFF, and GIF).
+- Lossy, TinyPNG-class compression via [sharp](https://sharp.pixelplumbing.com/) — mozjpeg for JPEG, libimagequant palette quantization for PNG, plus WebP, AVIF, TIFF, and GIF.
 - Everything runs locally — images never leave your machine.
+
+## Supported Formats
+
+PNG, JPEG, WebP, AVIF, TIFF, GIF
 
 ## Settings
 
@@ -21,67 +22,23 @@ context menu — a local replacement for round-tripping through TinyPNG.
 | `imageOptimizer.jpegQuality` | `80` | JPEG quality (1–100). |
 | `imageOptimizer.pngQuality` | `80` | PNG palette-quantization quality target. |
 | `imageOptimizer.webpQuality` | `80` | WebP / AVIF quality. |
-| `imageOptimizer.skipIfLargerOrEqual` | `true` | When overwriting in place, keep the original if no size win. |
-| `imageOptimizer.minSavingsPercent` | `0` | When overwriting in place, only write if savings meet this percent. |
+| `imageOptimizer.skipIfLargerOrEqual` | `true` | Keep the original if optimization does not reduce file size. |
+| `imageOptimizer.minSavingsPercent` | `0` | Only overwrite if savings meet this percent threshold. |
+| `imageOptimizer.notificationSeconds` | `5` | How long the result notification stays on screen. |
 
-## Install from GitHub
-
-If you want to install this extension directly from source:
+## Contributing
 
 ```bash
 git clone https://github.com/john-rock/vscimg.git
-cd image-optimizer-vscode
-npm install
-npm run package
-code --install-extension image-optimizer-*.vsix
-```
-
-Requirements:
-
-- Node.js 20+
-- VS Code CLI (`code`) available in your shell
-
-If you do not have the `code` CLI available:
-
-1. Run `npm run package` to generate the `.vsix` file.
-2. In VS Code, open Extensions view.
-3. Click the `...` menu in the Extensions panel.
-4. Choose **Install from VSIX...**.
-5. Select the generated `image-optimizer-<version>.vsix` file.
-
-## Develop
-
-```bash
+cd vscimg
 npm install
 npm run watch        # esbuild in watch mode
-# then press F5 in VS Code to launch an Extension Development Host
+# press F5 in VS Code to launch an Extension Development Host
 ```
 
-## Build & install locally
+To package locally:
 
 ```bash
-npm install
-npm run package                       # produces image-optimizer-<version>.vsix
-code --install-extension image-optimizer-0.1.0.vsix
+npm run package
+code --install-extension vscimg-*.vsix
 ```
-
-## Automated GitHub releases
-
-This repo includes a GitHub Actions workflow at `.github/workflows/release.yml`.
-Pushing a tag like `v0.3.1` will:
-
-- build and package the extension
-- create/update a GitHub Release for that tag
-- upload the generated `.vsix` as a release asset
-
-```bash
-git tag v0.3.1
-git push origin v0.3.1
-```
-
-## Architecture
-
-The encoder is isolated in `src/optimize.ts` behind a single `optimize()`
-function. Everything else — menu contributions, file walking, progress, and
-reporting — is encoder-agnostic, so swapping sharp for a WASM encoder (e.g. for
-a cross-platform Marketplace build) only touches that one file.

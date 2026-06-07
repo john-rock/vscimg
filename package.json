@@ -1,14 +1,15 @@
 {
-  "name": "image-optimizer",
-  "displayName": "Image Optimizer",
+  "name": "vscimg",
+  "displayName": "vscimage - Local Image Optimizer",
   "description": "Right-click any image or folder in the Explorer to compress it in place — TinyPNG-style lossy optimization, fully local.",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "publisher": "johnrock",
   "private": true,
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
   },
+  "icon": "images/icon.png",
   "categories": [
     "Other"
   ],
