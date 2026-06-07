@@ -6,6 +6,7 @@ interface WorkerInput {
   ext: string
   opts: OptimizeOptions
   fast: boolean
+  targetRatio: number | undefined
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -21,46 +22,66 @@ function getVips(): Promise<any> {
   return _vipsInit
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function encode(im: any, e: string, q: number, fast: boolean): Uint8Array {
+  switch (e) {
+    case '.jpg':
+    case '.jpeg':
+      return im.jpegsaveBuffer({ Q: q, optimize_coding: true, strip: true })
+    case '.png':
+      return im.pngsaveBuffer({
+        Q: q,
+        palette: true,
+        compression: fast ? 6 : 9,
+        effort: fast ? 4 : 10,
+        strip: true,
+      })
+    case '.webp':
+      return im.webpsaveBuffer({ Q: q, effort: fast ? 3 : 6, strip: true })
+    case '.avif':
+      return im.heifsaveBuffer({ Q: q, compression: 'av1', effort: fast ? 1 : 5, strip: true })
+    case '.tiff':
+    case '.tif':
+      return im.tiffsaveBuffer({ Q: q, strip: true })
+    default:
+      throw new Error(`Unsupported format: ${e}`)
+  }
+}
+
 async function run(): Promise<void> {
-  const { input, ext, opts, fast } = workerData as WorkerInput
+  const { input, ext, opts, fast, targetRatio } = workerData as WorkerInput
   const vips = await getVips()
   const e = ext.toLowerCase()
   const animated = e === '.gif' || e === '.webp'
   const im = vips.Image.newFromBuffer(Buffer.from(input), animated ? '[n=-1]' : '')
   let out: Uint8Array
   try {
-    switch (e) {
-      case '.jpg':
-      case '.jpeg':
-        out = im.jpegsaveBuffer({ Q: opts.jpegQuality, optimize_coding: true })
-        break
-      case '.png':
-        out = im.pngsaveBuffer({
-          Q: opts.pngQuality,
-          palette: true,
-          compression: fast ? 6 : 9,
-          effort: fast ? 4 : 10,
-        })
-        break
-      case '.webp':
-        out = im.webpsaveBuffer({ Q: opts.webpQuality, effort: fast ? 3 : 6 })
-        break
-      case '.avif':
-        out = im.heifsaveBuffer({
-          Q: opts.webpQuality,
-          compression: 'av1',
-          effort: fast ? 1 : 5,
-        })
-        break
-      case '.tiff':
-      case '.tif':
-        out = im.tiffsaveBuffer({ Q: opts.jpegQuality })
-        break
-      case '.gif':
-        out = im.gifsaveBuffer({})
-        break
-      default:
-        throw new Error(`Unsupported format: ${ext}`)
+    if (e === '.gif') {
+      out = im.gifsaveBuffer({})
+    } else if (targetRatio !== undefined) {
+      const targetBytes = Math.floor(input.byteLength * targetRatio)
+      // Binary search quality (1–95) to find the encoding closest to targetBytes
+      // without exceeding it. Min quality floor of 1 ensures we always produce output.
+      let lo = 1
+      let hi = 95
+      let best: Uint8Array = encode(im, e, lo, fast)
+      while (lo <= hi) {
+        const mid = Math.floor((lo + hi) / 2)
+        const candidate = encode(im, e, mid, fast)
+        if (candidate.byteLength <= targetBytes) {
+          best = candidate
+          lo = mid + 1
+        } else {
+          hi = mid - 1
+        }
+      }
+      out = best
+    } else {
+      const q =
+        e === '.jpg' || e === '.jpeg' || e === '.tiff' || e === '.tif'
+          ? opts.jpegQuality
+          : opts.webpQuality
+      out = encode(im, e, q, fast)
     }
   } finally {
     im.delete()

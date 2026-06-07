@@ -33,12 +33,13 @@ export function optimize(
   input: Buffer,
   ext: string,
   opts: OptimizeOptions,
-  fast = false
+  fast = false,
+  targetRatio?: number
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const workerPath = path.join(__dirname, 'worker.js')
     const w = new Worker(workerPath, {
-      workerData: { input: new Uint8Array(input), ext, opts, fast },
+      workerData: { input: new Uint8Array(input), ext, opts, fast, targetRatio },
     })
     w.once('message', (msg: { result?: Buffer; error?: string }) => {
       if (msg.error) {

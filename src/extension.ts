@@ -235,22 +235,10 @@ async function optimizeOne(
     const before = data.byteLength
     const dest = destOverride ?? uri
     const ext = path.extname(dest.fsPath)
-    const optimized = await optimize(Buffer.from(data), ext, settings)
-    const after = optimized.byteLength
-    const overwritingSelf = dest.fsPath === uri.fsPath
-
-    // Skip rules apply only to true in-place overwrites, never to "As…".
-    if (overwritingSelf) {
-      const savings = before > 0 ? ((before - after) / before) * 100 : 0
-      if (settings.skipIfLargerOrEqual && after >= before) {
-        return { uri, before, after, written: false }
-      }
-      if (savings < settings.minSavingsPercent) {
-        return { uri, before, after, written: false }
-      }
-    }
-
-    await vscode.workspace.fs.writeFile(dest, optimized)
+    const optimized = await optimize(Buffer.from(data), ext, settings, false, 0.8)
+    const payload = optimized.byteLength < before ? optimized : data
+    const after = payload.byteLength
+    await vscode.workspace.fs.writeFile(dest, payload)
     return { uri: dest, before, after, written: true }
   } catch (e) {
     return {
