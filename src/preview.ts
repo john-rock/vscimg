@@ -87,7 +87,12 @@ export async function openPreview(
     if (msg.type === 'encode' && typeof msg.quality === 'number') {
       try {
         // `fast` keeps the slider responsive; the saved file re-encodes at full effort.
-        const buf = await optimize(originalBuf, ext, qualityOpts(msg.quality), true)
+        // Race against a 60 s watchdog so a silent wasm hang surfaces as an error.
+        const encodePromise = optimize(originalBuf, ext, qualityOpts(msg.quality), true)
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Encoding timed out (60 s). Check the Image Optimizer output channel.')), 60_000)
+        )
+        const buf = await Promise.race([encodePromise, timeoutPromise])
         void panel.webview.postMessage({
           type: 'encoded',
           seq: msg.seq,
@@ -95,6 +100,7 @@ export async function openPreview(
           size: buf.byteLength,
         })
       } catch (e) {
+        console.error('[Image Optimizer] encode error:', e)
         void panel.webview.postMessage({
           type: 'error',
           seq: msg.seq,
@@ -218,7 +224,10 @@ function getHtml(
     </div>
     <div class="pane">
       <h3>Optimized</h3>
-      <div class="imgwrap"><img id="optImg" alt="optimized" /></div>
+      <div class="imgwrap">
+        <span id="optLoading" style="color:var(--vscode-descriptionForeground);font-size:12px">Encoding…</span>
+        <img id="optImg" alt="optimized" style="display:none" />
+      </div>
     </div>
   </div>
 
@@ -232,6 +241,7 @@ function getHtml(
   const saveBtn = document.getElementById('save');
   const origImg = document.getElementById('origImg');
   const optImg = document.getElementById('optImg');
+  const optLoading = document.getElementById('optLoading');
   const origSizeEl = document.getElementById('origSize');
   const optSizeEl = document.getElementById('optSize');
   const savedEl = document.getElementById('saved');
@@ -251,7 +261,9 @@ function getHtml(
 
   function requestEncode() {
     const cur = ++seq;
-    optImg.classList.add('busy');
+    optImg.style.display = 'none';
+    optLoading.style.display = '';
+    optLoading.textContent = 'Encoding…';
     optSizeEl.textContent = '…';
     vscode.postMessage({ type: 'encode', quality: Number(q.value), seq: cur });
   }
@@ -283,8 +295,9 @@ function getHtml(
     }
     if (msg.type === 'encoded') {
       if (msg.seq !== seq) return;   // a newer request superseded this one
+      optLoading.style.display = 'none';
+      optImg.style.display = '';
       optImg.src = msg.dataUri;
-      optImg.classList.remove('busy');
       optSizeEl.textContent = fmt(msg.size);
       const pct = ORIGINAL_SIZE > 0 ? Math.round((1 - msg.size / ORIGINAL_SIZE) * 100) : 0;
       savedEl.textContent = (pct >= 0 ? '−' : '+') + Math.abs(pct) + '% ' + (pct >= 0 ? 'smaller' : 'larger');
@@ -292,9 +305,9 @@ function getHtml(
       if (!saving) saveBtn.disabled = false;   // don't reopen Save mid-write
     } else if (msg.type === 'error') {
       if (msg.seq !== seq) return;
-      optImg.classList.remove('busy');
+      optLoading.textContent = msg.message;
       optSizeEl.textContent = 'error';
-      savedEl.textContent = msg.message;
+      savedEl.textContent = '';
       savedEl.className = 'saved bad';
     }
   });

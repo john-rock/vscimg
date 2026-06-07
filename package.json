@@ -2,7 +2,7 @@
   "name": "vscimg",
   "displayName": "vscimage - Local Image Optimizer",
   "description": "Right-click any image or folder in the Explorer to compress it in place — TinyPNG-style lossy optimization, fully local.",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "publisher": "johnrock",
   "private": true,
   "license": "MIT",
@@ -104,7 +104,7 @@
     "vscode:prepublish": "npm run build"
   },
   "dependencies": {
-    "sharp": "^0.33.5"
+    "wasm-vips": "^0.0.17"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

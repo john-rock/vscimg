@@ -1,4 +1,5 @@
-import sharp from 'sharp'
+import { Worker } from 'node:worker_threads'
+import * as path from 'node:path'
 
 export interface OptimizeOptions {
   jpegQuality: number
@@ -24,58 +25,31 @@ export function isSupported(ext: string): boolean {
 /**
  * Compress an image buffer, emitting the format implied by `ext`.
  *
- * This is the single engine seam for the whole extension: everything
- * else (menus, file walking, reporting) is encoder-agnostic, so swapping
- * sharp for a WASM encoder later means rewriting only this function.
- *
- * `fast` trades a little compression for speed (lower effort levels) — it
- * exists for the live quality-preview slider, where re-encoding on every
- * drag must stay responsive. Final saves always pass `fast = false`.
+ * Runs wasm-vips inside a Node.js worker_thread so its Emscripten pthread
+ * pool initialization (which uses Atomics.wait) doesn't deadlock against
+ * Electron's Chromium event loop on the extension host main thread.
  */
-export async function optimize(
+export function optimize(
   input: Buffer,
   ext: string,
   opts: OptimizeOptions,
   fast = false
 ): Promise<Buffer> {
-  const e = ext.toLowerCase()
-  // Preserve animation frames for formats that can carry them.
-  const pipeline = sharp(input, { animated: e === '.gif' || e === '.webp' })
-
-  switch (e) {
-    case '.jpg':
-    case '.jpeg':
-      // mozjpeg is already fast; no separate fast path needed.
-      return pipeline
-        .jpeg({ quality: opts.jpegQuality, mozjpeg: true })
-        .toBuffer()
-    case '.png':
-      // `palette: true` enables libimagequant quantization — the
-      // lossy step that gives TinyPNG-class PNG savings.
-      return pipeline
-        .png({
-          quality: opts.pngQuality,
-          palette: true,
-          compressionLevel: fast ? 6 : 9,
-          effort: fast ? 4 : 10,
-        })
-        .toBuffer()
-    case '.webp':
-      return pipeline
-        .webp({ quality: opts.webpQuality, effort: fast ? 3 : 6 })
-        .toBuffer()
-    case '.avif':
-      // AVIF is the slow one — high effort can take seconds, so previews
-      // use the lowest effort and the real save re-encodes at full effort.
-      return pipeline
-        .avif({ quality: opts.webpQuality, effort: fast ? 1 : 5 })
-        .toBuffer()
-    case '.tiff':
-    case '.tif':
-      return pipeline.tiff({ quality: opts.jpegQuality }).toBuffer()
-    case '.gif':
-      return pipeline.gif().toBuffer()
-    default:
-      throw new Error(`Unsupported format: ${ext}`)
-  }
+  return new Promise((resolve, reject) => {
+    const workerPath = path.join(__dirname, 'worker.js')
+    const w = new Worker(workerPath, {
+      workerData: { input: new Uint8Array(input), ext, opts, fast },
+    })
+    w.once('message', (msg: { result?: Buffer; error?: string }) => {
+      if (msg.error) {
+        reject(new Error(msg.error))
+      } else {
+        resolve(Buffer.from(msg.result!))
+      }
+    })
+    w.once('error', reject)
+    w.once('exit', (code) => {
+      if (code !== 0) reject(new Error(`Encoder worker exited with code ${code}`))
+    })
+  })
 }

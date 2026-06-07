@@ -5,15 +5,15 @@ const watch = process.argv.includes('--watch')
 
 async function main() {
   const ctx = await esbuild.context({
-    entryPoints: ['src/extension.ts'],
+    entryPoints: ['src/extension.ts', 'src/worker.ts'],
     bundle: true,
     format: 'cjs',
     platform: 'node',
     target: 'node18',
-    outfile: 'dist/extension.js',
-    // `vscode` is provided by the host; `sharp` is a native module that
-    // must stay external and ship as a real dependency in the .vsix.
-    external: ['vscode', 'sharp'],
+    outdir: 'dist',
+    // `vscode` is provided by the host; `wasm-vips` must stay external so its
+    // .wasm files are loadable at runtime from node_modules.
+    external: ['vscode', 'wasm-vips'],
     sourcemap: !production,
     minify: production,
     logLevel: 'info',
