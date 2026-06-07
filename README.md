@@ -5,11 +5,11 @@ A VS Code extension that compresses images in place, right from the Explorer con
 ## Features
 
 - Right-click an image (or a folder, or a multi-selection) in the Explorer → **Optimize Image**. Files are re-encoded and overwritten in place.
+- **Optimize Image** always writes — it targets 80% of the original file size by binary-searching the quality setting, and strips all metadata (EXIF, ICC, XMP). If the encoder can't reach the target, it uses the smallest result it can produce. The file never grows larger than the original.
 - **Preview & Optimize Image…** opens a side-by-side preview so you can see the result before committing.
 - **Optimize Image As…** re-encodes a single file to a new name or format.
 - Folders recurse and optimize every supported image inside.
-- Lossy, TinyPNG-class compression via [sharp](https://sharp.pixelplumbing.com/) — mozjpeg for JPEG, libimagequant palette quantization for PNG, plus WebP, AVIF, TIFF, and GIF.
-- Everything runs locally — images never leave your machine.
+- Fully local — images never leave your machine.
 
 ## Supported Formats
 
@@ -19,11 +19,9 @@ PNG, JPEG, WebP, AVIF, TIFF, GIF
 
 | Setting | Default | Description |
 |---|---|---|
-| `imageOptimizer.jpegQuality` | `80` | JPEG quality (1–100). |
-| `imageOptimizer.pngQuality` | `80` | PNG palette-quantization quality target. |
-| `imageOptimizer.webpQuality` | `80` | WebP / AVIF quality. |
-| `imageOptimizer.skipIfLargerOrEqual` | `true` | Keep the original if optimization does not reduce file size. |
-| `imageOptimizer.minSavingsPercent` | `0` | Only overwrite if savings meet this percent threshold. |
+| `imageOptimizer.jpegQuality` | `80` | JPEG quality ceiling for Preview/As… workflows (1–100). |
+| `imageOptimizer.pngQuality` | `80` | PNG quality ceiling for Preview/As… workflows. |
+| `imageOptimizer.webpQuality` | `80` | WebP / AVIF quality ceiling for Preview/As… workflows. |
 | `imageOptimizer.notificationSeconds` | `5` | How long the result notification stays on screen. |
 
 ## Contributing
